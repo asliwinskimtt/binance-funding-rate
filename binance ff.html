@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Funding Rate - Binance</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: auto; }
+    .section { margin-top: 30px; }
+    .rate-box { margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
+    input, button { padding: 8px; font-size: 16px; }
+    .result-line { margin-top: 5px; }
+    .bias {
+      color: green;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h1>Funding Rate z Binance</h1>
+
+  <div class="section">
+    <h2>Wybrane pary</h2>
+    <div id="presetRates">
+      <div class="rate-box" id="BTCUSDT"></div>
+      <div class="rate-box" id="ETHUSDT"></div>
+      <div class="rate-box" id="XRPUSDT"></div>
+      <div class="rate-box" id="SOLUSDT"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Wyszukaj inną parę</h2>
+    <input type="text" id="symbolInput" placeholder="np. DOGEUSDT" />
+    <button onclick="fetchFundingRate()">Szukaj</button>
+    <div class="rate-box" id="searchResult"></div>
+  </div>
+
+  <script>
+    const presetSymbols = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT"];
+
+    async function getFundingRate(symbol, targetElementId) {
+      const url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!data || !data[0]) throw new Error("Brak danych");
+
+        const rawRate = parseFloat(data[0].fundingRate);
+        const fundingRatePercent = rawRate * 100;
+        const apr = rawRate * 1095 * 100;
+
+        const bias = rawRate >= 0 ? `<span class="bias">SHORT 🚀</span>` : `<span class="bias">LONG 🚀</span>`;
+
+        document.getElementById(targetElementId).innerHTML = `
+          <strong>${symbol}</strong><br />
+          Obecny funding rate: <strong>${fundingRatePercent.toFixed(4)}%</strong><br />
+          Roczny (APR): <strong>${apr.toFixed(2)}%</strong>${bias}
+        `;
+      } catch (err) {
+        document.getElementById(targetElementId).innerHTML = `<span class="error">${symbol}: Błąd przy pobieraniu danych.</span>`;
+        console.error(err);
+      }
+    }
+
+    function fetchAllPresets() {
+      presetSymbols.forEach(symbol => getFundingRate(symbol, symbol));
+    }
+
+    function fetchFundingRate() {
+      const symbol = document.getElementById("symbolInput").value.toUpperCase().trim();
+      if (symbol) {
+        getFundingRate(symbol, "searchResult");
+      }
+    }
+
+    window.onload = fetchAllPresets;
+  </script>
+</body>
+</html>
