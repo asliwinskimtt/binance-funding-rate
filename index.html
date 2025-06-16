@@ -9,15 +9,37 @@
     .section { margin-top: 30px; }
     .rate-box { margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
     input, button { padding: 8px; font-size: 16px; margin: 5px; }
+    .result-line { margin-top: 5px; }
+    .bias { color: green; font-weight: bold; margin-left: 10px; }
     .error { color: red; }
   </style>
 </head>
 <body>
   <h1>Funding Rate z Binance</h1>
 
+  <!-- Preset Symbols -->
   <div class="section">
-    <h2>Wyszukaj parę i zakres dat</h2>
-    <input type="text" id="symbolInput" placeholder="np. BTCUSDT" />
+    <h2>Wybrane pary</h2>
+    <div id="presetRates">
+      <div class="rate-box" id="BTCUSDT"></div>
+      <div class="rate-box" id="ETHUSDT"></div>
+      <div class="rate-box" id="XRPUSDT"></div>
+      <div class="rate-box" id="SOLUSDT"></div>
+    </div>
+  </div>
+
+  <!-- Single Symbol Search -->
+  <div class="section">
+    <h2>Wyszukaj inną parę</h2>
+    <input type="text" id="symbolInput" placeholder="np. DOGEUSDT" />
+    <button onclick="fetchFundingRate()">Szukaj</button>
+    <div class="rate-box" id="searchResult"></div>
+  </div>
+
+  <!-- Historical Funding Rates Chart -->
+  <div class="section">
+    <h2>Historia Funding Rate i APR</h2>
+    <input type="text" id="historicalSymbol" placeholder="np. BTCUSDT" />
     <input type="date" id="startDate" />
     <input type="date" id="endDate" />
     <button onclick="fetchHistorical()">Pokaż historię</button>
@@ -26,8 +48,47 @@
   </div>
 
   <script>
+    const presetSymbols = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT"];
+
+    async function getFundingRate(symbol, targetElementId) {
+      const url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!data || !data[0]) throw new Error("Brak danych");
+
+        const rawRate = parseFloat(data[0].fundingRate);
+        const fundingRatePercent = rawRate * 100;
+        const apr = rawRate * 1095 * 100;
+        const bias = rawRate >= 0 ? `<span class="bias"></span>` : `<span class="bias">LONG 🚀</span>`;
+
+        document.getElementById(targetElementId).innerHTML = `
+          <strong>${symbol}</strong><br />
+          Obecny funding rate: <strong>${fundingRatePercent.toFixed(4)}%</strong><br />
+          Roczny (APR): <strong>${apr.toFixed(2)}%</strong>${bias}
+        `;
+      } catch (err) {
+        document.getElementById(targetElementId).innerHTML = `<span class="error">${symbol}: Błąd przy pobieraniu danych.</span>`;
+        console.error(err);
+      }
+    }
+
+    function fetchAllPresets() {
+      presetSymbols.forEach(symbol => getFundingRate(symbol, symbol));
+    }
+
+    function fetchFundingRate() {
+      const symbol = document.getElementById("symbolInput").value.toUpperCase().trim();
+      if (symbol) {
+        getFundingRate(symbol, "searchResult");
+      }
+    }
+
+    window.onload = fetchAllPresets;
+
+    // Historical funding rate chart
     async function fetchHistorical() {
-      const symbol = document.getElementById("symbolInput").value.trim().toUpperCase();
+      const symbol = document.getElementById("historicalSymbol").value.trim().toUpperCase();
       const startDate = document.getElementById("startDate").value;
       const endDate = document.getElementById("endDate").value;
 
@@ -47,7 +108,7 @@
         if (!Array.isArray(data) || data.length === 0) throw new Error("Brak danych");
 
         const labels = data.map(e => new Date(e.fundingTime).toLocaleString());
-        const aprs = data.map(e => parseFloat(e.fundingRate) * 1095 * 100); // 8h → APR
+        const aprs = data.map(e => parseFloat(e.fundingRate) * 1095 * 100);
 
         drawChart(labels, aprs, symbol);
         document.getElementById("historicalResult").innerHTML = `<strong>Znaleziono ${data.length} wpisów.</strong>`;
