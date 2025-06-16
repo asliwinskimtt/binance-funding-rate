@@ -51,7 +51,7 @@
         const fundingRatePercent = rawRate * 100;
         const apr = rawRate * 1095 * 100;
 
-        const bias = rawRate >= 0 ? `<span class="bias">SHORT 🚀</span>` : `<span class="bias">LONG 🚀</span>`;
+        const bias = rawRate >= 0 ? `<span class="bias"></span>` : `<span class="bias">LONG 🚀</span>`;
 
         document.getElementById(targetElementId).innerHTML = `
           <strong>${symbol}</strong><br />
