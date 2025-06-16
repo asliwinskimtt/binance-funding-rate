@@ -88,34 +88,38 @@
 
     // Historical funding rate chart
     async function fetchHistorical() {
-      const symbol = document.getElementById("historicalSymbol").value.trim().toUpperCase();
-      const startDate = document.getElementById("startDate").value;
-      const endDate = document.getElementById("endDate").value;
+  const symbol = document.getElementById("historicalSymbol").value.trim().toUpperCase();
+  const startDate = document.getElementById("startDate").value;
+  const endDate = document.getElementById("endDate").value;
 
-      if (!symbol || !startDate || !endDate) {
-        document.getElementById("historicalResult").innerHTML = "<span class='error'>Wprowadź symbol i daty.</span>";
-        return;
-      }
+  if (!symbol || !startDate || !endDate) {
+    document.getElementById("historicalResult").innerHTML = "<span class='error'>Wprowadź symbol i daty.</span>";
+    return;
+  }
 
-      const startTime = new Date(startDate).getTime();
-      const endTime = new Date(endDate).getTime();
+  const startTime = new Date(startDate).getTime();
+  const endTime = new Date(endDate).getTime();
 
-      const url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&startTime=${startTime}&endTime=${endTime}&limit=1000`;
+  const url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&startTime=${startTime}&endTime=${endTime}&limit=1000`;
 
-      try {
-        const res = await fetch(url);
-        const data = await res.json();
-        if (!Array.isArray(data) || data.length === 0) throw new Error("Brak danych");
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) throw new Error("Brak danych");
 
-        const labels = data.map(e => new Date(e.fundingTime).toLocaleString());
-        const aprs = data.map(e => parseFloat(e.fundingRate) * 1095 * 100);
+    const labels = data.map(e => new Date(e.fundingTime).toLocaleString());
+    const aprs = data.map(e => parseFloat(e.fundingRate) * 1095 * 100);
+    const avgApr = aprs.reduce((a, b) => a + b, 0) / aprs.length;
 
-        drawChart(labels, aprs, symbol);
-        document.getElementById("historicalResult").innerHTML = `<strong>Znaleziono ${data.length} wpisów.</strong>`;
-      } catch (err) {
-        document.getElementById("historicalResult").innerHTML = `<span class='error'>Błąd: ${err.message}</span>`;
-      }
-    }
+    drawChart(labels, aprs, symbol);
+    document.getElementById("historicalResult").innerHTML = `
+      <strong>Znaleziono ${data.length} wpisów.</strong><br />
+      <strong>Średni APR:</strong> ${avgApr.toFixed(2)}%
+    `;
+  } catch (err) {
+    document.getElementById("historicalResult").innerHTML = `<span class='error'>Błąd: ${err.message}</span>`;
+  }
+}
 
     let chartInstance;
     function drawChart(labels, data, symbol) {
