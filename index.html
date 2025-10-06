@@ -221,7 +221,11 @@
         const list = platform === "binance" ? data : data.result?.list || [];
         if (!Array.isArray(list) || list.length === 0) throw new Error("Brak danych");
 
-        const labels = list.map(e => new Date(e.fundingTime || e.fundingRateTimestamp).toLocaleString());
+        const labels = list.map(e => {
+          const t = Number(e.fundingTime || e.fundingRateTimestamp || e.timestamp);
+          return isNaN(t) ? "N/A" : new Date(t).toLocaleString();
+        });
+
         const aprs = list.map(e => parseFloat(e.fundingRate) * 1095 * 100);
         const avgApr = aprs.reduce((a, b) => a + b, 0) / aprs.length;
 
@@ -269,3 +273,4 @@
   </script>
 </body>
 </html>
+
