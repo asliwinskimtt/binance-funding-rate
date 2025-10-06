@@ -2,20 +2,29 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8">
-  <title>Funding Rate - Binance</title>
+  <title>Funding Rate - Binance & Bybit</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: auto; }
     .section { margin-top: 30px; }
     .rate-box { margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
-    input, button { padding: 8px; font-size: 16px; margin: 5px; }
+    input, button, select { padding: 8px; font-size: 16px; margin: 5px; }
     .result-line { margin-top: 5px; }
     .bias { color: green; font-weight: bold; margin-left: 10px; }
     .error { color: red; }
   </style>
 </head>
 <body>
-  <h1>Funding Rate z Binance</h1>
+  <h1>Funding Rate z Binance & Bybit</h1>
+
+  <!-- Platform Selector -->
+  <div class="section">
+    <label for="platformSelect"><strong>Wybierz platformę:</strong></label>
+    <select id="platformSelect">
+      <option value="binance">Binance Futures</option>
+      <option value="bybit">Bybit Futures</option>
+    </select>
+  </div>
 
   <!-- Preset Symbols -->
   <div class="section">
@@ -51,19 +60,31 @@
     const presetSymbols = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT"];
 
     async function getFundingRate(symbol, targetElementId) {
-      const url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`;
+      const platform = document.getElementById("platformSelect").value;
+      let url;
+
+      if (platform === "binance") {
+        url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`;
+      } else if (platform === "bybit") {
+        url = `https://api.bybit.com/v5/market/funding/history?category=linear&symbol=${symbol}&limit=1`;
+      }
+
       try {
         const res = await fetch(url);
         const data = await res.json();
-        if (!data || !data[0]) throw new Error("Brak danych");
+        if (platform === "binance" && (!data || !data[0])) throw new Error("Brak danych");
+        if (platform === "bybit" && (!data.result || !data.result.list || data.result.list.length === 0)) throw new Error("Brak danych");
 
-        const rawRate = parseFloat(data[0].fundingRate);
+        let rawRate;
+        if (platform === "binance") rawRate = parseFloat(data[0].fundingRate);
+        else rawRate = parseFloat(data.result.list[0].fundingRate);
+
         const fundingRatePercent = rawRate * 100;
         const apr = rawRate * 1095 * 100;
         const bias = rawRate >= 0 ? `<span class="bias"></span>` : `<span class="bias">LONG 🚀</span>`;
 
         document.getElementById(targetElementId).innerHTML = `
-          <strong>${symbol}</strong><br />
+          <strong>${symbol}</strong> (${platform.toUpperCase()})<br />
           Obecny funding rate: <strong>${fundingRatePercent.toFixed(4)}%</strong><br />
           Roczny (APR): <strong>${apr.toFixed(2)}%</strong>${bias}
         `;
@@ -88,38 +109,53 @@
 
     // Historical funding rate chart
     async function fetchHistorical() {
-  const symbol = document.getElementById("historicalSymbol").value.trim().toUpperCase();
-  const startDate = document.getElementById("startDate").value;
-  const endDate = document.getElementById("endDate").value;
+      const platform = document.getElementById("platformSelect").value;
+      const symbol = document.getElementById("historicalSymbol").value.trim().toUpperCase();
+      const startDate = document.getElementById("startDate").value;
+      const endDate = document.getElementById("endDate").value;
 
-  if (!symbol || !startDate || !endDate) {
-    document.getElementById("historicalResult").innerHTML = "<span class='error'>Wprowadź symbol i daty.</span>";
-    return;
-  }
+      if (!symbol || !startDate || !endDate) {
+        document.getElementById("historicalResult").innerHTML = "<span class='error'>Wprowadź symbol i daty.</span>";
+        return;
+      }
 
-  const startTime = new Date(startDate).getTime();
-  const endTime = new Date(endDate).getTime();
+      const startTime = new Date(startDate).getTime();
+      const endTime = new Date(endDate).getTime();
+      let url;
 
-  const url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&startTime=${startTime}&endTime=${endTime}&limit=1000`;
+      if (platform === "binance") {
+        url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&startTime=${startTime}&endTime=${endTime}&limit=1000`;
+      } else {
+        url = `https://api.bybit.com/v5/market/funding/history?category=linear&symbol=${symbol}&startTime=${startTime}&endTime=${endTime}&limit=200`;
+      }
 
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) throw new Error("Brak danych");
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        let list;
 
-    const labels = data.map(e => new Date(e.fundingTime).toLocaleString());
-    const aprs = data.map(e => parseFloat(e.fundingRate) * 1095 * 100);
-    const avgApr = aprs.reduce((a, b) => a + b, 0) / aprs.length;
+        if (platform === "binance") list = data;
+        else list = data.result?.list || [];
 
-    drawChart(labels, aprs, symbol);
-    document.getElementById("historicalResult").innerHTML = `
-      <strong>Znaleziono ${data.length} wpisów.</strong><br />
-      <strong>Średni APR:</strong> ${avgApr.toFixed(2)}%
-    `;
-  } catch (err) {
-    document.getElementById("historicalResult").innerHTML = `<span class='error'>Błąd: ${err.message}</span>`;
-  }
-}
+        if (!Array.isArray(list) || list.length === 0) throw new Error("Brak danych");
+
+        const labels = list.map(e =>
+          new Date(e.fundingTime || e.fundingRateTimestamp).toLocaleString()
+        );
+        const aprs = list.map(e =>
+          parseFloat(e.fundingRate) * 1095 * 100
+        );
+        const avgApr = aprs.reduce((a, b) => a + b, 0) / aprs.length;
+
+        drawChart(labels, aprs, `${symbol} (${platform})`);
+        document.getElementById("historicalResult").innerHTML = `
+          <strong>Znaleziono ${list.length} wpisów.</strong><br />
+          <strong>Średni APR:</strong> ${avgApr.toFixed(2)}%
+        `;
+      } catch (err) {
+        document.getElementById("historicalResult").innerHTML = `<span class='error'>Błąd: ${err.message}</span>`;
+      }
+    }
 
     let chartInstance;
     function drawChart(labels, data, symbol) {
@@ -144,16 +180,10 @@
           responsive: true,
           scales: {
             y: {
-              title: {
-                display: true,
-                text: 'APR (%)'
-              }
+              title: { display: true, text: 'APR (%)' }
             },
             x: {
-              ticks: {
-                maxTicksLimit: 15,
-                autoSkip: true
-              }
+              ticks: { maxTicksLimit: 15, autoSkip: true }
             }
           },
           plugins: {
