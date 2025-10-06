@@ -150,51 +150,61 @@
         container.appendChild(box);
       });
     }
-
- async function getFundingRate(symbol, targetElementId) {
-  const platform = document.getElementById("platformSelect").value;
-  let url;
-
-  if (platform === "binance") {
-    url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`;
-  } else {
-    // Bybit: predicted (next) funding rate
-    url = `https://api.bybit.com/v5/market/funding/predicted-funding?category=linear&symbol=${symbol}`;
-  }
-
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-
-    let rawRate;
-
-    if (platform === "binance") {
-      if (!Array.isArray(data) || !data[0]) throw new Error("Brak danych z Binance");
-      rawRate = parseFloat(data[0].fundingRate);
-    } else {
-      if (!data.result || !data.result.predictedFundingRate) throw new Error("Brak danych z Bybit");
-      rawRate = parseFloat(data.result.predictedFundingRate);
+    
+    async function getFundingRate(symbol, targetElementId) {
+      const platform = document.getElementById("platformSelect").value;
+      let url;
+    
+      if (platform === "binance") {
+        url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`;
+      } else {
+        url = `https://api.bybit.com/v5/market/funding/predicted-funding?category=linear&symbol=${symbol}`;
+      }
+    
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        if (!text) throw new Error("Pusta odpowiedź API");
+        
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error("Nieprawidłowy format JSON");
+        }
+    
+        let rawRate;
+    
+        if (platform === "binance") {
+          if (!Array.isArray(data) || !data[0]) throw new Error("Brak danych z Binance");
+          rawRate = parseFloat(data[0].fundingRate);
+        } else {
+          if (!data.result || !data.result.predictedFundingRate)
+            throw new Error("Brak danych z Bybit");
+          rawRate = parseFloat(data.result.predictedFundingRate);
+        }
+    
+        if (isNaN(rawRate)) throw new Error("Nieprawidłowa wartość funding rate");
+    
+        const fundingRatePercent = rawRate * 100;
+        const apr = rawRate * 1095 * 100;
+    
+        document.getElementById(targetElementId).innerHTML = `
+          <strong>${symbol}</strong> <small>(${platform.toUpperCase()})</small><br />
+          Funding rate: <strong>${fundingRatePercent.toFixed(4)}%</strong><br/>
+          Roczny (APR): <strong>${apr.toFixed(2)}%</strong><br/>
+          <small style="color: #6b7280;">
+            ${platform === "binance" ? "ostatni" : "prognozowany"} funding
+          </small>
+        `;
+      } catch (err) {
+        console.error(err);
+        document.getElementById(targetElementId).innerHTML =
+          `<span class="error">${symbol}: Błąd przy pobieraniu danych (${err.message}).</span>`;
+      }
     }
 
-    if (isNaN(rawRate)) throw new Error("Nieprawidłowa wartość funding rate");
-
-    const fundingRatePercent = rawRate * 100;
-    const apr = rawRate * 1095 * 100;
-
-    document.getElementById(targetElementId).innerHTML = `
-      <strong>${symbol}</strong> <small>(${platform.toUpperCase()})</small><br />
-      Funding rate: <strong>${fundingRatePercent.toFixed(4)}%</strong><br/>
-      Roczny (APR): <strong>${apr.toFixed(2)}%</strong><br/>
-      <small style="color: #6b7280;">
-        ${platform === "binance" ? "ostatni" : "prognozowany"} funding
-      </small>
-    `;
-  } catch (err) {
-    console.error(err);
-    document.getElementById(targetElementId).innerHTML =
-      `<span class="error">${symbol}: Błąd przy pobieraniu danych (${err.message}).</span>`;
-  }
-}
 
 
     function fetchAllPresets() {
@@ -283,6 +293,7 @@
   </script>
 </body>
 </html>
+
 
 
 
