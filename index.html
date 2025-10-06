@@ -158,7 +158,8 @@
       if (platform === "binance")
         url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`;
       else
-        url = `https://api.bybit.com/v5/market/funding/history?category=linear&symbol=${symbol}&limit=1`;
+        url = `https://api.bybit.com/v5/market/funding/predicted-funding?category=linear&symbol=${symbol}`;
+
 
       try {
         const res = await fetch(url);
@@ -270,5 +271,6 @@
   </script>
 </body>
 </html>
+
 
 
